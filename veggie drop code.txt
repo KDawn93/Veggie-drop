@@ -1,0 +1,205 @@
+const rabbit = document.getElementById('rabbit');  
+const scoreDisplay = document.getElementById('scoreDisplay');
+const timerDisplay = document.getElementById('timerDisplay');
+const rabbitHoles = [
+    document.getElementById('rabbitHole1'),
+    document.getElementById('rabbitHole2'),
+    document.getElementById('rabbitHole3'),
+    document.getElementById('rabbitHole4'),
+    document.getElementById('rabbitHole5')
+];
+
+// Set the grass area height and bottom limit for enemies
+const grassTop = 200; // Adjust this value based on your grass area starting position
+const grassHeight = 50; // Height of the grass area, adjust if needed
+const enemySpawnOffset = 100; // Offset for enemy spawn position (100 pixels below the grass area)
+const enemyFallDistance = 100; // Distance enemies fall down after spawning
+
+let score = 0;
+let rabbitX = window.innerWidth / 2 - 25;
+let rabbitY = 50;
+let isJumping = false;
+let timeLeft = 180;
+const rabbitSpeed = 20;
+const itemSpeed = 2;
+const enemySpeed = 2;
+const fallingItems = [];
+const spawnInterval = 1500;
+const enemyInterval = 3000;
+const vegetables = ["🥕", "🍅", "🥒", "🌽"];
+const maxEnemies = 5;
+
+rabbit.style.left = `${rabbitX}px`;
+rabbit.style.bottom = `${rabbitY}px`;
+
+document.addEventListener('keydown', handleKeydown);
+
+function handleKeydown(event) {
+    const rabbitWidth = rabbit.offsetWidth;
+    if (event.key === 'ArrowLeft' && rabbitX > 0) {
+        rabbitX -= rabbitSpeed;
+        rabbit.classList.remove('flip-right');
+    } else if (event.key === 'ArrowRight' && rabbitX + rabbitWidth < window.innerWidth) {
+        rabbitX += rabbitSpeed;
+        rabbit.classList.add('flip-right');
+    } else if (event.key === ' ' && !isJumping) {
+        jump();
+        shootProjectile(); // Jump and shoot on spacebar
+    }
+    rabbit.style.left = `${rabbitX}px`;
+}
+
+function jump() {
+    isJumping = true;
+    rabbitY += 60;
+    rabbit.style.bottom = `${rabbitY}px`;
+
+    setTimeout(() => {
+        rabbitY -= 60;
+        rabbit.style.bottom = `${rabbitY}px`;
+        isJumping = false;
+    }, 200);
+}
+
+function shootProjectile() {
+    const projectile = document.createElement('div');
+    projectile.className = 'projectile';
+    projectile.textContent = '💩';
+    projectile.style.position = 'absolute';
+    projectile.style.zIndex = 10;
+
+    const rabbitRect = rabbit.getBoundingClientRect();
+
+    // Calculate starting position based on rabbit's direction
+    if (rabbit.classList.contains('flip-right')) {
+        // Start from the back of the rabbit facing right
+        projectile.style.left = `${rabbitRect.left - 25}px`; // 25 pixels to the left for the rear
+    } else {
+        // Start from the back of the rabbit facing left
+        projectile.style.left = `${rabbitRect.right + 5}px`; // 5 pixels to the right for the rear
+    }
+
+    projectile.style.bottom = `${rabbitY - 10}px`; // Slightly lower
+    document.body.appendChild(projectile);
+
+    const moveProjectile = setInterval(() => {
+        const projectileRect = projectile.getBoundingClientRect();
+        if (projectileRect.bottom > 0) {
+            projectile.style.bottom = `${parseFloat(projectile.style.bottom) - 10}px`; // Move downward
+        } else {
+            clearInterval(moveProjectile);
+            projectile.remove();
+        }
+
+        const enemies = document.querySelectorAll('.enemy');
+        enemies.forEach(enemy => {
+            const enemyRect = enemy.getBoundingClientRect();
+            if (
+                projectileRect.bottom > enemyRect.top &&
+                projectileRect.top < enemyRect.bottom &&
+                projectileRect.left < enemyRect.right &&
+                projectileRect.right > enemyRect.left
+            ) {
+                score += 5;
+                scoreDisplay.textContent = `Score: ${score}`;
+                enemy.remove();
+                clearInterval(moveProjectile);
+                projectile.remove();
+            }
+        });
+    }, 100);
+}
+
+function spawnFallingItem() {
+    const item = document.createElement('div');
+    item.className = 'fallingItem';
+    item.textContent = vegetables[Math.floor(Math.random() * vegetables.length)];
+    item.style.left = `${Math.random() * (window.innerWidth - 30)}px`;
+    item.style.top = '-30px';
+    document.body.appendChild(item);
+    fallingItems.push(item);
+
+    const fallInterval = setInterval(() => {
+        const itemRect = item.getBoundingClientRect();
+        if (itemRect.top < window.innerHeight) {
+            item.style.top = `${itemRect.top + itemSpeed}px`;
+        } else {
+            clearInterval(fallInterval);
+            item.remove();
+            fallingItems.splice(fallingItems.indexOf(item), 1);
+        }
+
+        const rabbitRect = rabbit.getBoundingClientRect();
+        if (
+            itemRect.bottom > rabbitRect.top &&
+            itemRect.top < rabbitRect.bottom &&
+            itemRect.left < rabbitRect.right &&
+            itemRect.right > rabbitRect.left
+        ) {
+            score += 5;
+            scoreDisplay.textContent = `Score: ${score}`;
+            item.remove();
+            clearInterval(fallInterval);
+            fallingItems.splice(fallingItems.indexOf(item), 1);
+        }
+    }, 100);
+}
+
+function spawnEnemy() {
+    const enemy = document.createElement('div');
+    enemy.className = 'enemy';
+    enemy.textContent = '👽'; // Enemy emoji
+    const randomSide = Math.random() < 0.5; // 50% chance to spawn from left or right
+    const enemyX = randomSide
+        ? -30 // Spawn off-screen left
+        : window.innerWidth + 30; // Spawn off-screen right
+    enemy.style.left = `${enemyX}px`;
+    enemy.style.bottom = `${enemySpawnOffset}px`; // 100 pixels below the grass area
+    document.body.appendChild(enemy);
+
+    const moveEnemy = setInterval(() => {
+        const enemyRect = enemy.getBoundingClientRect();
+        const newPosition = randomSide ? enemyRect.left + enemySpeed : enemyRect.left - enemySpeed;
+        enemy.style.left = `${newPosition}px`;
+
+        // Remove enemy if it goes off screen
+        if (newPosition > window.innerWidth || newPosition < -30) {
+            clearInterval(moveEnemy);
+            enemy.remove();
+        }
+
+        // Check for collision with rabbit
+        if (
+            enemyRect.bottom > rabbitRect.top &&
+            enemyRect.top < rabbitRect.bottom &&
+            enemyRect.left < rabbitRect.right &&
+            enemyRect.right > rabbitRect.left
+        ) {
+            // Game over condition (optional)
+            alert("Game Over! You collided with an enemy.");
+            clearInterval(moveEnemy);
+            enemy.remove();
+        }
+    }, 100);
+}
+
+// Timer
+const timerInterval = setInterval(() => {
+    timeLeft--;
+    timerDisplay.textContent = `Time: ${timeLeft}`;
+    if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        clearInterval(enemySpawnInterval);
+        clearInterval(itemSpawnInterval);
+        alert("Time's up! Your final score is: " + score);
+    }
+}, 1000);
+
+// Spawning intervals
+const itemSpawnInterval = setInterval(spawnFallingItem, 2000);
+const enemySpawnInterval = setInterval(() => {
+    if (document.querySelectorAll('.enemy').length < maxEnemies) {
+        spawnEnemy();
+    }
+}, enemyInterval);
+         
